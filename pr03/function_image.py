@@ -41,7 +41,7 @@ def create_from_function(
             for n in range(n_samples):
                 for m in range(m_samples):
                     x = i + (rng.random() * m / m_samples)
-                    y = j + (rng.random() * n / n_samples)
+                    y = h - (j + (rng.random() * n / n_samples))
                     f = implicit_function(x, y)
                     if f < 0:
                         im_array[j][i] += c0

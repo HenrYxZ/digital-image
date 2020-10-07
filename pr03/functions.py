@@ -57,18 +57,17 @@ def create_convex(width, height):
 
 
 def create_star(width, height):
+    scale = 30
     center = np.array([width / 2, height / 2])
-    theta1 = 45
-    theta2 = 180 - theta1
-    theta3 = -30
-    theta4 = 180 - theta3
     theta0 = 90
+    theta1 = 25
+    theta2 = 180 - theta1
+    theta3 = -50
+    theta4 = 180 - theta3
     angles = [theta0, theta1, theta2, theta3, theta4]
-    distances = [30, 50, 50, 20, 20]
+    distances = scale * np.array([1, 1, 1, 0.75, 0.75])
     ns = [normal_from_angle(angle) for angle in angles]
-    p0s = [(center + (ns[i] * distances[i])) for i in range(len(distances))]
-    print(ns)
-    print(p0s)
+    p0s = [center + ns[i] * distances[i] for i in range(len(distances))]
 
     def f(x, y):
         p = np.array([x, y])
@@ -86,17 +85,7 @@ def create_star(width, height):
     return f
 
 
-def create_line(center):
+def create_line(p0, p1):
     def f(x, y):
-        x -= center[0]
-        y -= center[1]
-        c0 = -30
-        c1 = 0
-        c2 = 2
-        c3 = 2
-        c4 = 0.4
-        return (
-            c4 * y ** 3 * x ** 3 + c3 * x ** 2 + c2 * y ** 2 +
-            c1 * x + c0
-        )
+        return 0
     return f

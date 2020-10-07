@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 
 def normalize(arr):
@@ -26,3 +27,20 @@ def humanize_time(secs):
 
 def degrees2radians(degrees):
     return (degrees / 360) * 2 * np.pi
+
+
+class Timer:
+    def __init__(self):
+        self.start_time = 0
+        self.end_time = 0
+        self.elapsed_time = 0
+
+    def start(self):
+        self.start_time = time.time()
+
+    def stop(self):
+        self.end_time = time.time()
+        self.elapsed_time = self.end_time - self.start_time
+
+    def __str__(self):
+        return humanize_time(self.elapsed_time)
