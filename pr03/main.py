@@ -5,6 +5,7 @@ import random
 # Local modules
 import functions
 from function_image import create_from_function
+import line
 import utils
 
 
@@ -15,6 +16,8 @@ c1 = np.array([0.75, 0.75, 0.5])
 p0 = np.array([15, 20])
 p1 = np.array([180, 243])
 MAX_QUALITY = 95
+COLOR_CHANNELS = 3
+MAX_COLOR = 255
 
 CONVEX_FILENAME = "convex.jpg"
 STAR_FILENAME = "star.jpg"
@@ -32,24 +35,28 @@ def main():
         )
         if opt == '0':
             quit()
-        if opt == '1':
-            f = functions.create_convex(WIDTH, HEIGHT)
-            img_filename = CONVEX_FILENAME
-        elif opt == '2':
-            f = functions.create_star(WIDTH, HEIGHT)
-            img_filename = STAR_FILENAME
-        else:
-            f = functions.create_line(p0, p1)
-            img_filename = LINE_FILENAME
         print("Creating image ...")
         timer = utils.Timer()
         timer.start()
-        im_arr = create_from_function(f, WIDTH, HEIGHT, c0, c1)
+        if opt == '1':
+            f = functions.create_convex(WIDTH, HEIGHT)
+            im_arr = create_from_function(f, WIDTH, HEIGHT, c0, c1)
+            img_filename = CONVEX_FILENAME
+        elif opt == '2':
+            f = functions.create_star(WIDTH, HEIGHT)
+            im_arr = create_from_function(f, WIDTH, HEIGHT, c0, c1)
+            img_filename = STAR_FILENAME
+        else:
+            im_arr = np.zeros([HEIGHT, WIDTH, COLOR_CHANNELS])
+            line.draw(im_arr, p0, p1, c0)
+            im_arr = im_arr.round() * MAX_COLOR
+            im_arr = im_arr.astype(np.uint8)
+            img_filename = LINE_FILENAME
+        timer.stop()
+        print(f"Total time spent: {timer}")
         img = Image.fromarray(im_arr)
         img.save(img_filename, quality=MAX_QUALITY)
         print(f"Image saved in {img_filename}")
-        timer.stop()
-        print(f"Total time spent: {timer}")
 
 
 if __name__ == '__main__':

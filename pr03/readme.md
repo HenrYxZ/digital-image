@@ -5,6 +5,3 @@
 Run
 `$ python main.py`
 and follow instructions
-
-NOTE:
-Only CONVEX is working for now

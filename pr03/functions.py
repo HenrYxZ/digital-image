@@ -83,9 +83,3 @@ def create_star(width, height):
         else:
             return 1
     return f
-
-
-def create_line(p0, p1):
-    def f(x, y):
-        return 0
-    return f
