@@ -1,8 +1,15 @@
+from PIL import Image
 import numpy as np
 import time
 
 
 MAX_COLOR = 255
+
+
+def open_image(img_filename):
+    img = Image.open(img_filename)
+    img_arr = np.array(img)
+    return img_arr
 
 
 def normalize(arr):

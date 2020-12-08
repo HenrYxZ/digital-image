@@ -77,16 +77,58 @@ def main():
                 [0, 0, 1 - x * y]
             ])
         elif opt == '5':
+            # Using Pseudo-Code from TA
             print("Applying perspective to image...")
-            a = 150
-            b = 50
-            new_h = h + a + 50
-            new_w = w + b + 50
-            inverse_matrix = np.array([
-                [1, 0, 0],
-                [0, 1, 0],
-                [-a, -b, 1]
-            ])
+            # a = 150
+            # b = 50
+            # new_h = h + a + 50
+            # new_w = w + b + 50
+            # inverse_matrix = np.array([
+            #     [1, 0, 0],
+            #     [0, 1, 0],
+            #     [-a, -b, 1]
+            # ])
+            # init
+            output = np.zeros([h, w, color_channels], dtype=np.uint8)
+            # choose four points in image
+            x0 = 10 / w
+            x1 = 89 / w
+            x2 = 150 / w
+            x3 = 347 / w
+            y0 = 25 / h
+            y1 = 159 / h
+            y2 = 345 / h
+            y3 = 499 / h
+            # calculate a0, b0, a1, b1, a2, b2, a3,
+            a0 = x0
+            a1 = x3 - x0
+            a2 = x1 - x0
+            a3 = x2 - x1 - x3 - x0
+            b0 = y0
+            b1 = y3 - y0
+            b2 = y1 - y0
+            b3 = y2 - y1 - y3 - y0
+            for j in range(h):
+                for i in range(w):
+                    x = i / w
+                    y = j / h
+                    c0 = a1 * (b0 - y) + b1 * (x - a0)
+                    c1 = a3 * (b0 - y) + b3 * (x - a0) + a1 * b2 - a2 * b1
+                    c2 = a3 * b2 - a2 * b3
+                    v = (-c1) / (2 * c2) + np.sqrt(
+                        np.square(c1) - 4 * c2 * c0
+                    ) / (2 * c2)
+                    u = (x - a0 - a2 * v) / (a1 + a3 * v)
+                    if 0 < u < 1 and 0 < v < 1:
+                        j1 = int(v * h)
+                        i1 = int(u * w)
+                        output[j][i] = img_arr[j1][i1]
+            timer.stop()
+            print(f"Total time spent: {timer}")
+            output_img = Image.fromarray(output)
+            output_img.save("output.jpg", quality=MAX_QUALITY)
+            print(f"Image saved in output.jpg")
+            return
         else:
             inverse_matrix = np.identity(3)
             new_h = h
