@@ -25,6 +25,8 @@ def main():
             "[3] for rotate\n"
             "[4] for shear\n"
             "[5] for perspective\n"
+            "[6] for mirror\n"
+            "[7] for translate + scale\n"
             "[0] to quit\n"
         )
         if opt == '0':
@@ -129,6 +131,61 @@ def main():
             output_img.save("output.jpg", quality=MAX_QUALITY)
             print(f"Image saved in output.jpg")
             return
+        elif opt == '6':
+            print("Mirroring image...")
+            inverse_matrix = np.array([
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]
+            ])
+            new_h = h
+            new_w = w
+            output_arr = np.zeros((new_h, new_w, color_channels),
+                                  dtype=np.uint8)
+            step_size = np.ceil(new_w * new_h / 100).astype('int')
+            counter = 0
+            bar = Bar('Processing', max=100)
+            bar.check_tty = False
+            for j in range(new_h):
+                for i in range(new_w):
+                    color = np.zeros(color_channels)
+                    # Samples
+                    for n in range(V_SAMPLES):
+                        for m in range(H_SAMPLES):
+                            r0, r1 = np.random.random_sample(2)
+                            x = i + (m + r0) / H_SAMPLES + 0.5
+                            y = new_h - 1 - j + (n + r1) / V_SAMPLES + 0.5
+                            transform = np.dot(
+                                inverse_matrix, np.array([x, y, 1])
+                            ).astype(int)
+                            if transform[2] != 1:
+                                transform = transform / transform[2]
+                            u, v = transform[:2]
+                            if not (u >= w or v >= h):
+                                # sample_color = utils.blerp(img_arr, u, v)
+                                sample_color = img_arr[h - 1 - int(v)][int(u)]
+                                color += sample_color
+                    color = color / TOTAL_SAMPLES
+                    output_arr[j][i] = color
+                    counter += 1
+                    if counter % step_size == 0:
+                        bar.next()
+            bar.finish()
+            timer.stop()
+            print(f"Total time spent: {timer}")
+            output_img = Image.fromarray(output_arr)
+            output_img.save("output.jpg", quality=MAX_QUALITY)
+            print(f"Image saved in output.jpg")
+            return
+        elif opt == '7':
+            print("Translate + Scale...")
+            inverse_matrix = np.array([
+                [2, 0, -256],
+                [0, 2, -256],
+                [0, 0, 1]
+            ])
+            new_h = h
+            new_w = w
         else:
             inverse_matrix = np.identity(3)
             new_h = h
@@ -154,11 +211,12 @@ def main():
                         if transform[2] != 1:
                             transform = transform / transform[2]
                         u, v = transform[:2]
-                        if not (u < 0 or u >= w or v < 0 or v >= h):
-                            sample_color = utils.blerp(img_arr, u, v)
+                        if not (u >= w or v >= h or u < 0 or v < 0):
+                            # sample_color = utils.blerp(img_arr, u, v)
+                            sample_color = img_arr[h - 1 - int(v)][int(u)]
                             color += sample_color
-                color /= TOTAL_SAMPLES
-                output_arr[j][i] = color.astype(np.uint8)
+                color = color / TOTAL_SAMPLES
+                output_arr[j][i] = color
                 counter += 1
                 if counter % step_size == 0:
                     bar.next()
