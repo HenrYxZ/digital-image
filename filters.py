@@ -2,10 +2,11 @@ import numpy as np
 from progress.bar import Bar
 
 # Local Modules
+from constants import MAX_COLOR
 import utils
 
 
-DEFAULT_SIZE = 5
+DEFAULT_SIZE = 9
 DEFAULT_THETA = np.pi / 4
 RGB_CHANNELS = 3
 DX_KERNEL = np.array([
@@ -27,15 +28,17 @@ def box_blur_kernel(size=DEFAULT_SIZE):
     return normalized_kernel
 
 
-def motion_blur_kernel(size=DEFAULT_SIZE, thickness=0.5, theta=DEFAULT_THETA):
+def motion_blur_kernel(size=DEFAULT_SIZE, thickness=1.5, theta=DEFAULT_THETA):
     kernel = np.zeros((size, size))
-    n = utils.normalize(np.array([np.cos(90 - theta), np.sin(90 - theta)]))
+    n = utils.normalize(
+        np.array([np.cos(-(np.pi / 2 - theta)), np.sin(-(np.pi / 2 - theta))])
+    )
     for j in range(size):
         for i in range(size):
             x = i + 0.5
             y = size - (j + 0.5)
             p = np.array([x, y])
-            dist = np.dot(p, n)
+            dist = np.abs(np.dot(p, n))
             if dist < thickness:
                 kernel[j][i] = 1
     normalized_kernel = kernel / np.sum(kernel)
@@ -50,6 +53,7 @@ def convolve(img_arr, kernel):
     step_size = np.ceil(iterations / 100).astype(int)
     counter = 0
     bar = Bar("Using convolution...", max=100, suffix='%(percent)d%%')
+    bar.check_tty = False
     for j in range(h):
         for i in range(w):
             color = np.zeros(RGB_CHANNELS)
@@ -72,11 +76,11 @@ def convolve(img_arr, kernel):
                     if x > w - 1:
                         x = w - 1
                     if y < 0:
-                        x = 0
+                        y = 0
                     if y > h - 1:
                         y = h - 1
                     color += np.round(img_arr[y][x] * kernel[n][m])
-            output[j][i] = color
+            output[j][i] = np.clip(color, 0, MAX_COLOR)
             counter += 1
             if counter % step_size == 0:
                 bar.next()
@@ -86,7 +90,7 @@ def convolve(img_arr, kernel):
 
 def morphological_filter(img_arr, compare_function):
     size = 2
-    SHAPE = [
+    shape = [
         (i, j) for j in range(-size, size + 1) for i in range(-size, size + 1)
     ]
     h, w, _ = img_arr.shape
@@ -94,7 +98,7 @@ def morphological_filter(img_arr, compare_function):
     for j in range(size, h - size):
         for i in range(size, w - size):
             value = img_arr[j][i]
-            for point in SHAPE:
+            for point in shape:
                 color = img_arr[j + point[1]][i + point[0]]
                 if compare_function(value, color):
                     value = color
@@ -126,8 +130,8 @@ def edge(img_arr):
             #         dx += img_arr[j + n][i + m] * DX_KERNEL[n + 1][m + 1]
             #         dy += img_arr[j + n][i + m] * DY_KERNEL[n + 1][m + 1]
             for m in range(3):
-                    dx += img_arr[j][i + m - 1] * DERIVATIVE[m]
-                    dy += img_arr[j + m - 1][i] * DERIVATIVE[::-1][m]
+                dx += img_arr[j][i + m - 1] * DERIVATIVE[m]
+                dy += img_arr[j + m - 1][i] * DERIVATIVE[::-1][m]
             color = 255 - (dx + dy) / 2
             output[j][i] = color
     return output

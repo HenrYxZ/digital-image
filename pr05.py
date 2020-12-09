@@ -38,12 +38,12 @@ def main():
         if opt == '1':
             print("Creating box blur...")
             output_filename = OUTPUT_BOX_BLUR
-            kernel = filters.box_blur_kernel(5)
+            kernel = filters.box_blur_kernel()
             output_arr = filters.convolve(img_arr, kernel)
         elif opt == '2':
             print("Creating motion blur...")
             output_filename = OUTPUT_MOTION_BLUR
-            kernel = filters.motion_blur_kernel(5)
+            kernel = filters.motion_blur_kernel()
             output_arr = filters.convolve(img_arr, kernel)
         elif opt == '3':
             print("Creating dilation...")
