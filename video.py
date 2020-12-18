@@ -12,7 +12,7 @@ import utils
 
 VIDEOS_DIR = "videos"
 MAX_INTENSITY = 255
-VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final.mp4"
+VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_hd.mp4"
 OUT_VIDEO_FILENAME = f"{VIDEOS_DIR}/out.mp4"
 MAX_QUALITY = 95
 # duration of video in seconds
@@ -29,7 +29,8 @@ def main():
         os.mkdir(VIDEOS_DIR)
     counter = 0
     total_frames = DURATION * FPS
-    bar = Bar("Processing...", max=total_frames, suffix='%(percent)d%%')
+    step_size = total_frames / 100
+    bar = Bar("Processing...", max=100, suffix='%(percent)d%%')
     bar.check_tty = False
     # Read frames from video
     reader = imageio.get_reader(VIDEO_FILENAME)
@@ -40,14 +41,15 @@ def main():
         w, h, _ = frame.shape
         frame = np.array(frame) / MAX_COLOR
         grayscale = np.dot(frame, RGB_WEIGHT)
-        img_arr = floyd_steinberg_dithering(grayscale)
+        img_arr = ordered_dithering(grayscale)
         img = Image.fromarray(img_arr)
         img = img.convert("RGB")
         # Append rendered image into video
         img_arr = np.array(img)
         writer.append_data(img_arr)
         counter += 1
-        bar.next()
+        if counter % step_size == 0:
+            bar.next()
     bar.finish()
     print("Writing video")
     writer.close()
