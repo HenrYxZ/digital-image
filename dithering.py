@@ -36,15 +36,19 @@ def find_closest_color(color, palette):
     return closest_color
 
 
-def floyd_steinberg_dithering(img_arr):
+def floyd_steinberg_dithering(img_arr, add_noise=True, palette=None):
     h, w = img_arr.shape
-    output = np.copy(img_arr) + np.random.random_sample([h, w])
+    noise = np.random.random_sample([h, w]) if add_noise else np.zeros([h, w])
+    if palette is None:
+        # if a palette is not given it will use black and white
+        palette = (0.0, 1.0)
+
+    output = np.copy(img_arr) + noise
     for j in range(h):
         for i in range(w):
             x = i if j % 2 == 0 else w - 1 - i
             original_pixel = output[j][x]
-            # new_pixel = find_closest_color(original_pixel, palette)
-            new_pixel = round(original_pixel)
+            new_pixel = find_closest_color(original_pixel, palette)
             output[j][x] = new_pixel
             error = original_pixel - new_pixel
             if j < h - 1 and 0 < x < w - 1 and j % 2 == 0:
