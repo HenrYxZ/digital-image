@@ -54,13 +54,13 @@ def normalize_color(color):
 
 
 def blerp(img_arr, x, y):
+    height, width = img_arr.shape[:2]
     # Interpolate values of pixel neighborhood of x and y
-    i = int(np.round(x))
-    j = int(np.round(y))
-    # But not in the borders
-    height, width, _ = img_arr.shape
+    i = int(x)
     # Flip y value to go from top to bottom
     y = height - y
+    j = int(y)
+    # But not in the borders
     if i == 0 or j == 0 or i == width or j == height:
         if i == width:
             i -= 1
@@ -68,8 +68,8 @@ def blerp(img_arr, x, y):
             j -= 1
         return img_arr[j][i]
     # t and s are interpolation parameters that go from 0 to 1
-    t = x - i + 0.5
-    s = y - j + 0.5
+    t = x - i
+    s = y - j
     # Bilinear interpolation
     color = (
         img_arr[j - 1][i - 1] * (1 - t) * (1 - s)
@@ -78,6 +78,13 @@ def blerp(img_arr, x, y):
         + img_arr[j][i] * t * s
     )
     return color
+
+
+def blerp_uv(img_arr, u, v):
+    height, width = img_arr.shape[:2]
+    x = u * width
+    y = v * height
+    return blerp(img_arr, x, y)
 
 
 class Timer:
