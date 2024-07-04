@@ -93,11 +93,14 @@ def main():
     frames = iio.imread(VIDEO_FILENAME)
     total_frames, h0, w0, color_channels = frames.shape
     # --------------------------------------------------------------------------
-    # step_size = total_frames / 100
-    # counter = 0
-    # bar = Bar("Processing...", max=100, suffix='%(percent)d%%')
-    # bar.check_tty = False
-    # output_frames = np.zeros(frames.shape, dtype=np.uint8)
+    step_size = total_frames / 100
+    counter = 0
+    bar = Bar("Processing...", max=100, suffix='%(percent)d%%')
+    bar.check_tty = False
+    output_frames = np.ones(
+        [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
+        dtype=np.uint8
+    ) * PALETTE[0]
     # Transform to grayscale
     # --------------------------------------------------------------------------
     frames = np.dot(frames, RGB_WEIGHT)
@@ -106,32 +109,43 @@ def main():
     iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=FPS)
     # Resize to fit Game Boy screen
     w1, h1 = fit_screen(w0, h0)
-    resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    resized_rgb = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    resized = np.zeros([total_frames, h1, w1])
     for i, frame in enumerate(frames):
         resized_frame = backwards_mapping(frame, h1, w1, utils.blerp_uv)
-        resized[i, :, :, 0] = resized_frame
-        resized[i, :, :, 1] = resized_frame
-        resized[i, :, :, 2] = resized_frame
-    iio.imwrite(RESIZED_FILENAME, resized, fps=FPS)
+        resized[i] = resized_frame
+        resized_rgb[i] = np.stack([resized_frame] * 3, axis=-1)
+    iio.imwrite(RESIZED_FILENAME, resized_rgb, fps=FPS)
     # --------------------------------------------------------------------------
-    # # Normalize
-    # frames = frames / MAX_COLOR
-    # for frame in frames:
-    #     # Use dithering to transform 256 grayscale to 4 colors grayscale
-    #
-    #     img_arr = floyd_steinberg_dithering(
-    #         frame, add_noise=False, palette=SCALE
-    #     )
-    #     # Transform to Game Boy color palette
-    #     rgb_img_arr = grayscale_to_palette(img_arr)
-    #     # Write to video
-    #     output_frames[counter] = rgb_img_arr
-    #     counter += 1
-    #     if counter % step_size == 0:
-    #         bar.next()
-    # bar.finish()
-    # print("Writing video")
-    # iio.imwrite(OUT_VIDEO_FILENAME, output_frames, fps=FPS)
+    # Normalize
+    resized = resized.astype(float) / 255.0
+    for frame in resized:
+        # Use dithering to transform 256 grayscale to 4 colors grayscale
+        img_arr = floyd_steinberg_dithering(
+            frame, add_noise=False, palette=SCALE
+        )
+        # Transform to Game Boy color palette
+        rgb_img_arr = grayscale_to_palette(img_arr)
+        # Write to video
+        if SCREEN_HEIGHT - h1 > 0:
+            vertical_offset = int((SCREEN_HEIGHT - h1) / 2)
+            horizontal_offset = 0
+        else:
+            vertical_offset = 0
+            horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
+        vertical_limit = SCREEN_HEIGHT - vertical_offset
+        horizontal_limit = SCREEN_WIDTH - horizontal_offset
+        output_frames[
+            counter,
+            vertical_offset:vertical_limit,
+            horizontal_offset:horizontal_limit
+        ] = rgb_img_arr
+        counter += 1
+        if counter % step_size == 0:
+            bar.next()
+    bar.finish()
+    print("Writing video")
+    iio.imwrite(OUT_VIDEO_FILENAME, output_frames, fps=FPS)
     # --------------------------------------------------------------------------
     timer.stop()
     print(f"Total time spent {timer}")
