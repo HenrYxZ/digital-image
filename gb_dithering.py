@@ -11,7 +11,6 @@ import utils
 
 
 VIDEOS_DIR = "videos"
-MAX_INTENSITY = 255
 VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
 GRAYSCALE_FILENAME = f"{VIDEOS_DIR}/grayscale.mp4"
 RESIZED_FILENAME = f"{VIDEOS_DIR}/resized.mp4"
@@ -118,12 +117,13 @@ def main():
     iio.imwrite(RESIZED_FILENAME, resized_rgb, fps=FPS)
     # --------------------------------------------------------------------------
     # Normalize
-    resized = resized.astype(float) / 255.0
+    resized = resized.astype(float) / MAX_COLOR
     for frame in resized:
         # Use dithering to transform 256 grayscale to 4 colors grayscale
         img_arr = floyd_steinberg_dithering(
             frame, add_noise=False, palette=SCALE
         )
+        # TODO Write dithered video
         # Transform to Game Boy color palette
         rgb_img_arr = grayscale_to_palette(img_arr)
         # Write to video
@@ -133,13 +133,14 @@ def main():
         else:
             vertical_offset = 0
             horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
-        vertical_limit = SCREEN_HEIGHT - vertical_offset
-        horizontal_limit = SCREEN_WIDTH - horizontal_offset
+        vertical_limit = vertical_offset + h1
+        horizontal_limit = horizontal_offset + w1
         output_frames[
             counter,
             vertical_offset:vertical_limit,
             horizontal_offset:horizontal_limit
         ] = rgb_img_arr
+        # TODO Scale video
         counter += 1
         if counter % step_size == 0:
             bar.next()
