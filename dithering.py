@@ -10,6 +10,7 @@ COLOR_CHANNELS = 1
 MAX_COLOR = 255
 V_SAMPLES = 3
 H_SAMPLES = 3
+NOISE_INTENSITY = 0.15
 TOTAL_SAMPLES = V_SAMPLES * H_SAMPLES
 IMAGES_DIR = "images"
 IMG_FILENAME = f"{IMAGES_DIR}/mickey.jpg"
@@ -38,7 +39,10 @@ def find_closest_color(color, palette):
 
 def floyd_steinberg_dithering(img_arr, add_noise=True, palette=None):
     h, w = img_arr.shape
-    noise = np.random.random_sample([h, w]) if add_noise else np.zeros([h, w])
+    if add_noise:
+        noise = np.random.random_sample([h, w]) * NOISE_INTENSITY
+    else:
+        noise = np.zeros([h, w])
     if palette is None:
         # if a palette is not given it will use black and white
         palette = (0.0, 1.0)

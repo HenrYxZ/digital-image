@@ -3,7 +3,6 @@ import numpy as np
 import os.path
 from PIL import Image
 from progress.bar import Bar
-import cv2 as cv
 
 # Local Modules
 from constants import MAX_COLOR

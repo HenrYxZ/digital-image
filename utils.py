@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 import time
+from typing import Callable
 
 
 MAX_COLOR = 255
@@ -10,6 +11,30 @@ def open_image(img_filename):
     img = Image.open(img_filename)
     img_arr = np.array(img)
     return img_arr
+
+
+def backwards_mapping(
+    img_arr: np.ndarray,
+    h1: int,
+    w1: int,
+    sample_func: Callable[[np.ndarray, float, float], np.ndarray]
+) -> np.ndarray:
+    if len(img_arr.shape) == 2:
+        new_shape = [h1, w1]
+    else:
+        new_shape = [h1, w1, img_arr.shape[2]]
+    new_arr = np.zeros(new_shape, dtype=np.uint8)
+    num_pixels = h1 * w1
+
+    for counter in range(num_pixels):
+        j = int(counter / w1)
+        i = int(counter % w1)
+        # sample the corresponding pixel in the original array
+        u = (i + 0.5) / w1
+        v = (h1 - (j + 0.5)) / h1   # y would be going from bottom to top
+        new_arr[j, i] = sample_func(img_arr, u, v)
+        counter += 1
+    return new_arr
 
 
 def normalize(arr):
@@ -53,6 +78,8 @@ def normalize_color(color):
     return color / MAX_COLOR
 
 
+# Sample functions
+# -----------------------------------------------------------------------------
 def blerp(img_arr, x, y):
     height, width = img_arr.shape[:2]
     # Interpolate values of pixel neighborhood of x and y
@@ -85,6 +112,22 @@ def blerp_uv(img_arr, u, v):
     x = u * width
     y = v * height
     return blerp(img_arr, x, y)
+
+
+def nearest_neighbor(img_arr, x, y):
+    height, width = img_arr.shape[:2]
+    i = int(x)
+    # Flip y value to go from top to bottom
+    y = height - y
+    j = int(y)
+    return img_arr[j, i]
+
+
+def nearest_neighbor_uv(img_arr, u, v):
+    height, width = img_arr.shape[:2]
+    x = u * width
+    y = v * height
+    return nearest_neighbor(img_arr, x, y)
 
 
 class Timer:

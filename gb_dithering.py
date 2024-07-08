@@ -1,13 +1,12 @@
 import imageio.v3 as iio
 import numpy as np
 import os.path
-from progress.bar import Bar
-from typing import Callable
 
 # Local Modules
 from constants import MAX_COLOR, RGB_CHANNELS
 from dithering import floyd_steinberg_dithering
 import utils
+from utils import backwards_mapping, nearest_neighbor_uv
 
 
 VIDEOS_DIR = "videos"
@@ -15,6 +14,7 @@ VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
 GRAYSCALE_FILENAME = f"{VIDEOS_DIR}/grayscale.mp4"
 RESIZED_FILENAME = f"{VIDEOS_DIR}/resized.mp4"
 DITHERED_FILENAME = f"{VIDEOS_DIR}/dithered.mp4"
+SMALL_FILENAME = f"{VIDEOS_DIR}/small.mp4"
 OUT_VIDEO_FILENAME = f"{VIDEOS_DIR}/out.mp4"
 MAX_QUALITY = 95
 FPS = 12
@@ -27,6 +27,7 @@ PALETTE = {
 }
 SCREEN_WIDTH = 160
 SCREEN_HEIGHT = 144
+PIXEL_SIZE = 3
 RGB_WEIGHT = np.array([0.2989, 0.5870, 0.1140])
 
 
@@ -56,77 +57,62 @@ def grayscale_to_palette(img_arr: np.ndarray):
     return rgb_arr
 
 
-def backwards_mapping(
-    img_arr: np.ndarray,
-    h1: int,
-    w1: int,
-    sample_func: Callable[[np.ndarray, float, float], np.ndarray]
-):
-    if len(img_arr.shape) == 2:
-        new_shape = [h1, w1]
-    else:
-        new_shape = [h1, w1, img_arr.shape[2]]
-    new_arr = np.zeros(new_shape, dtype=np.uint8)
-    num_pixels = h1 * w1
-
-    for counter in range(num_pixels):
-        j = int(counter / w1)
-        i = int(counter % w1)
-        # sample the corresponding pixel in the original array
-        u = (i + 0.5) / w1
-        v = (h1 - 1 - (j + 0.5)) / h1   # y would be going from bottom to top
-        new_arr[j, i] = sample_func(img_arr, u, v)
-        counter += 1
-    return new_arr
-
-
 def main():
     timer = utils.Timer()
     timer.start()
 
+    print("Starting the process!")
     # Create the videos folder if it doesn't exist
     if not os.path.exists(VIDEOS_DIR):
+        print("Creating video folder")
         os.mkdir(VIDEOS_DIR)
 
     # Read frames from video
+    print(f"Reading video file {VIDEO_FILENAME}")
     frames = iio.imread(VIDEO_FILENAME)
     total_frames, h0, w0, color_channels = frames.shape
+
+    # Resize to fit Game Boy screen
+    # -------------------------------------------------------------------------
+    print("Resizing video to fit Game Boy")
+    w1, h1 = fit_screen(w0, h0)
+    resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    for i, frame in enumerate(frames):
+        resized[i] = backwards_mapping(frame, h1, w1, utils.blerp_uv)
+    iio.imwrite(RESIZED_FILENAME, resized, fps=FPS)
+
+    # Transform to grayscale
+    # -------------------------------------------------------------------------
+    print("Transforming video to grayscale")
+    frames = np.dot(resized, RGB_WEIGHT)
+    grayscale = np.round(frames).astype(np.uint8)
+    grayscale_as_rgb = np.stack([grayscale] * 3, axis=-1)
+    iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=FPS)
+
     # --------------------------------------------------------------------------
-    step_size = total_frames / 100
-    counter = 0
-    bar = Bar("Processing...", max=100, suffix='%(percent)d%%')
-    bar.check_tty = False
+    # Normalize & dither
+    print("Dithering")
+    normalized = grayscale.astype(float) / MAX_COLOR
+    dithered_rgb = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
+    for i, frame in enumerate(normalized):
+        # Use dithering to transform 256 grayscale to 4 colors grayscale
+        dithered[i] = floyd_steinberg_dithering(
+            frame, add_noise=False, palette=SCALE
+        )
+        dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
+        iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
+
+    # -------------------------------------------------------------------------
+    # Colorize with Game Boy palette
+    print("Colorizing with the Game Boy palette")
     output_frames = np.ones(
         [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
         dtype=np.uint8
     ) * PALETTE[0]
-    # Transform to grayscale
-    # --------------------------------------------------------------------------
-    frames = np.dot(frames, RGB_WEIGHT)
-    grayscale = np.round(frames).astype(np.uint8)
-    grayscale_as_rgb = np.stack([grayscale] * 3, axis=-1)
-    iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=FPS)
-    # Resize to fit Game Boy screen
-    w1, h1 = fit_screen(w0, h0)
-    resized_rgb = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
-    resized = np.zeros([total_frames, h1, w1])
-    for i, frame in enumerate(frames):
-        resized_frame = backwards_mapping(frame, h1, w1, utils.blerp_uv)
-        resized[i] = resized_frame
-        resized_rgb[i] = np.stack([resized_frame] * 3, axis=-1)
-    iio.imwrite(RESIZED_FILENAME, resized_rgb, fps=FPS)
-    # --------------------------------------------------------------------------
-    # Normalize
-    resized = resized.astype(float) / MAX_COLOR
-    for frame in resized:
-        # Use dithering to transform 256 grayscale to 4 colors grayscale
-        img_arr = floyd_steinberg_dithering(
-            frame, add_noise=False, palette=SCALE
-        )
-        # TODO Write dithered video
+    for i, frame in enumerate(dithered):
         # Transform to Game Boy color palette
-        rgb_img_arr = grayscale_to_palette(img_arr)
-        # Write to video
+        rgb_img_arr = grayscale_to_palette(frame)
         if SCREEN_HEIGHT - h1 > 0:
             vertical_offset = int((SCREEN_HEIGHT - h1) / 2)
             horizontal_offset = 0
@@ -136,18 +122,34 @@ def main():
         vertical_limit = vertical_offset + h1
         horizontal_limit = horizontal_offset + w1
         output_frames[
-            counter,
+            i,
             vertical_offset:vertical_limit,
             horizontal_offset:horizontal_limit
         ] = rgb_img_arr
-        # TODO Scale video
-        counter += 1
-        if counter % step_size == 0:
-            bar.next()
-    bar.finish()
+        iio.imwrite(SMALL_FILENAME, output_frames, fps=FPS)
+
+    # -------------------------------------------------------------------------
+    # Scale up the video to be bigger
+    print("Scaling up the video")
+    h_final = SCREEN_HEIGHT * PIXEL_SIZE
+    w_final = SCREEN_WIDTH * PIXEL_SIZE
+    final_frames = np.zeros(
+        [
+            total_frames,
+            h_final,
+            w_final,
+            color_channels
+        ],
+        dtype=np.uint8
+    )
+    for i, frame in enumerate(output_frames):
+        final_frames[i] = backwards_mapping(
+            frame, h_final, w_final, nearest_neighbor_uv
+        )
+
     print("Writing video")
-    iio.imwrite(OUT_VIDEO_FILENAME, output_frames, fps=FPS)
-    # --------------------------------------------------------------------------
+    iio.imwrite(OUT_VIDEO_FILENAME, final_frames, fps=FPS)
+    # -------------------------------------------------------------------------
     timer.stop()
     print(f"Total time spent {timer}")
 
