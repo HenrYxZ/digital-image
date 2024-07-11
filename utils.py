@@ -1,4 +1,6 @@
+from constants import RGB_CHANNELS
 from PIL import Image
+from numba import njit
 import numpy as np
 import time
 from typing import Callable
@@ -41,9 +43,9 @@ def normalize(arr):
     """
     Normalize a vector using numpy.
     Args:
-        arr(darray): Input vector
+        arr(ndarray): Input vector
     Returns:
-        darray: Normalized input vector
+        ndarray: Normalized input vector
     """
     norm = np.linalg.norm(arr)
     if norm == 0:
@@ -65,9 +67,9 @@ def distance(p1, p2):
 
 
 def humanize_time(secs):
-    mins, secs = divmod(secs, 60)
-    hours, mins = divmod(mins, 60)
-    return '%02d:%02d:%02d' % (hours, mins, secs)
+    minutes, secs = divmod(secs, 60)
+    hours, minutes = divmod(minutes, 60)
+    return '%02d:%02d:%02d' % (hours, minutes, secs)
 
 
 def degrees2radians(degrees):
@@ -76,6 +78,37 @@ def degrees2radians(degrees):
 
 def normalize_color(color):
     return color / MAX_COLOR
+
+
+@njit
+def scale_blerp_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
+    new_arr = np.zeros((h1, w1, RGB_CHANNELS), dtype=np.uint8)
+    num_pixels = h1 * w1
+
+    for counter in range(num_pixels):
+        j = int(counter / w1)
+        i = int(counter % w1)
+        # sample the corresponding pixel in the original array
+        u = (i + 0.5) / w1
+        v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
+        new_arr[j, i] = blerp_uv_njit(img_arr, u, v)
+        counter += 1
+    return new_arr
+
+
+def scale_nn_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
+    new_arr = np.zeros((h1, w1, RGB_CHANNELS), dtype=np.uint8)
+    num_pixels = h1 * w1
+
+    for counter in range(num_pixels):
+        j = int(counter / w1)
+        i = int(counter % w1)
+        # sample the corresponding pixel in the original array
+        u = (i + 0.5) / w1
+        v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
+        new_arr[j, i] = nearest_neighbor_uv_njit(img_arr, u, v)
+        counter += 1
+    return new_arr
 
 
 # Sample functions
@@ -97,13 +130,13 @@ def blerp(img_arr, x, y):
     # t and s are interpolation parameters that go from 0 to 1
     t = x - i
     s = y - j
-    # Bilinear interpolation
-    color = (
+    # Bi-linear interpolation
+    color = np.round(
         img_arr[j - 1][i - 1] * (1 - t) * (1 - s)
         + img_arr[j - 1][i] * t * (1 - s)
         + img_arr[j][i - 1] * (1 - t) * s
         + img_arr[j][i] * t * s
-    )
+    ).astype(np.uint8)
     return color
 
 
@@ -112,6 +145,36 @@ def blerp_uv(img_arr, u, v):
     x = u * width
     y = v * height
     return blerp(img_arr, x, y)
+
+
+@njit
+def blerp_uv_njit(img_arr: np.ndarray, u: float, v: float) -> np.ndarray:
+    height, width = img_arr.shape[:2]
+    x = u * width
+    y = v * height
+    # Interpolate values of pixel neighborhood of x and y
+    i = int(x)
+    # Flip y value to go from top to bottom
+    y = height - y
+    j = int(y)
+    # But not in the borders
+    if i == 0 or j == 0 or i == width or j == height:
+        if i == width:
+            i -= 1
+        if j == height:
+            j -= 1
+        return img_arr[j][i]
+    # t and s are interpolation parameters that go from 0 to 1
+    t = x - i
+    s = y - j
+    # Bi-linear interpolation
+    color = np.round(
+        img_arr[j - 1][i - 1] * (1 - t) * (1 - s)
+        + img_arr[j - 1][i] * t * (1 - s)
+        + img_arr[j][i - 1] * (1 - t) * s
+        + img_arr[j][i] * t * s
+    ).astype(np.uint8)
+    return color
 
 
 def nearest_neighbor(img_arr, x, y):
@@ -128,6 +191,20 @@ def nearest_neighbor_uv(img_arr, u, v):
     x = u * width
     y = v * height
     return nearest_neighbor(img_arr, x, y)
+
+
+@njit
+def nearest_neighbor_uv_njit(
+    img_arr: np.ndarray, u: float, v: float
+) -> np.ndarray:
+    height, width = img_arr.shape[:2]
+    x = u * width
+    y = v * height
+    i = int(x)
+    # Flip y value to go from top to bottom
+    y = height - y
+    j = int(y)
+    return img_arr[j, i]
 
 
 class Timer:

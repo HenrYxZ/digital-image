@@ -6,7 +6,7 @@ import os.path
 from constants import MAX_COLOR, RGB_CHANNELS
 from dithering import floyd_steinberg_dithering
 import utils
-from utils import backwards_mapping, nearest_neighbor_uv
+from utils import scale_blerp_njit, scale_nn_njit
 
 
 VIDEOS_DIR = "videos"
@@ -76,9 +76,9 @@ def main():
     # -------------------------------------------------------------------------
     print("Resizing video to fit Game Boy")
     w1, h1 = fit_screen(w0, h0)
-    resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8)
     for i, frame in enumerate(frames):
-        resized[i] = backwards_mapping(frame, h1, w1, utils.blerp_uv)
+        resized[i] = scale_blerp_njit(frame, h1, w1)
     iio.imwrite(RESIZED_FILENAME, resized, fps=FPS)
 
     # Transform to grayscale
@@ -93,7 +93,9 @@ def main():
     # Normalize & dither
     print("Dithering")
     normalized = grayscale.astype(float) / MAX_COLOR
-    dithered_rgb = np.zeros([total_frames, h1, w1, RGB_CHANNELS])
+    dithered_rgb = np.zeros(
+        [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
+    )
     dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
     for i, frame in enumerate(normalized):
         # Use dithering to transform 256 grayscale to 4 colors grayscale
@@ -101,7 +103,7 @@ def main():
             frame, add_noise=False, palette=SCALE
         )
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
-        iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
+    iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
 
     # -------------------------------------------------------------------------
     # Colorize with Game Boy palette
@@ -143,9 +145,7 @@ def main():
         dtype=np.uint8
     )
     for i, frame in enumerate(output_frames):
-        final_frames[i] = backwards_mapping(
-            frame, h_final, w_final, nearest_neighbor_uv
-        )
+        final_frames[i] = scale_nn_njit(frame, h_final, w_final)
 
     print("Writing video")
     iio.imwrite(OUT_VIDEO_FILENAME, final_frames, fps=FPS)
