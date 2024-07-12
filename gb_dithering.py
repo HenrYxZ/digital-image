@@ -1,10 +1,11 @@
 import imageio.v3 as iio
+from numba import njit
 import numpy as np
 import os.path
 
 # Local Modules
 from constants import MAX_COLOR, RGB_CHANNELS
-from dithering import floyd_steinberg_dithering
+from dithering import floyd_steinberg_dithering_njit
 import utils
 from utils import scale_blerp_njit, scale_nn_njit
 
@@ -19,12 +20,11 @@ OUT_VIDEO_FILENAME = f"{VIDEOS_DIR}/out.mp4"
 MAX_QUALITY = 95
 FPS = 12
 SCALE = (0.0, 0.33, 0.66, 1.0)
-PALETTE = {
-    0: np.array([41, 65, 57], dtype=np.uint8),
-    84: np.array([57, 89, 74], dtype=np.uint8),
-    168: np.array([90, 121, 66], dtype=np.uint8),
-    255: np.array([123, 130, 16], dtype=np.uint8)
-}
+PALETTE = np.array(
+    ((41, 65, 57), (57, 89, 74), (90, 121, 66), (123, 130, 16)),
+    dtype=np.uint8
+)
+GRAYSCALE_PALETTE = np.array([0, 84, 168, 255], dtype=np.uint8)
 SCREEN_WIDTH = 160
 SCREEN_HEIGHT = 144
 PIXEL_SIZE = 3
@@ -44,15 +44,22 @@ def fit_screen(w0: int, h0: int) -> tuple[int, int]:
     return w1, SCREEN_HEIGHT
 
 
+@njit
 def grayscale_to_palette(img_arr: np.ndarray):
     h, w = img_arr.shape
     counter = 0
-    rgb_arr = np.zeros([h, w, RGB_CHANNELS], dtype=np.uint8)
+    rgb_arr = np.zeros((h, w, RGB_CHANNELS), dtype=np.uint8)
     for pixel in np.nditer(img_arr):
         j = int(counter / w)
         i = int(counter % w)
-        grayscale_value = int(pixel)
-        rgb_arr[j, i] = PALETTE[grayscale_value]
+        if pixel == 0:
+            rgb_arr[j, i] = PALETTE[0]
+        elif pixel == 84:
+            rgb_arr[j, i] = PALETTE[1]
+        elif pixel == 168:
+            rgb_arr[j, i] = PALETTE[2]
+        else:
+            rgb_arr[j, i] = PALETTE[3]
         counter += 1
     return rgb_arr
 
@@ -99,8 +106,8 @@ def main():
     dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
     for i, frame in enumerate(normalized):
         # Use dithering to transform 256 grayscale to 4 colors grayscale
-        dithered[i] = floyd_steinberg_dithering(
-            frame, add_noise=False, palette=SCALE
+        dithered[i] = floyd_steinberg_dithering_njit(
+            frame, GRAYSCALE_PALETTE, add_noise=False
         )
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
     iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
@@ -112,15 +119,15 @@ def main():
         [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
         dtype=np.uint8
     ) * PALETTE[0]
+    if SCREEN_HEIGHT - h1 > 0:
+        vertical_offset = int((SCREEN_HEIGHT - h1) / 2)
+        horizontal_offset = 0
+    else:
+        vertical_offset = 0
+        horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
     for i, frame in enumerate(dithered):
         # Transform to Game Boy color palette
         rgb_img_arr = grayscale_to_palette(frame)
-        if SCREEN_HEIGHT - h1 > 0:
-            vertical_offset = int((SCREEN_HEIGHT - h1) / 2)
-            horizontal_offset = 0
-        else:
-            vertical_offset = 0
-            horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
         vertical_limit = vertical_offset + h1
         horizontal_limit = horizontal_offset + w1
         output_frames[

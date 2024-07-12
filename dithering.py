@@ -1,3 +1,4 @@
+from numba import njit
 import numpy as np
 from PIL import Image
 
@@ -55,6 +56,38 @@ def floyd_steinberg_dithering(img_arr, add_noise=True, palette=None):
             new_pixel = find_closest_color(original_pixel, palette)
             output[j][x] = new_pixel
             error = original_pixel - new_pixel
+            if j < h - 1 and 0 < x < w - 1 and j % 2 == 0:
+                output[j][x + 1] += error * 7 / 16
+                output[j + 1][x - 1] += error * 3 / 16
+                output[j + 1][x] += error * 5 / 16
+                output[j + 1][x + 1] += error * 1 / 16
+            if j < h - 1 and 0 < x < w - 1 and j % 2 == 1:
+                output[j][x - 1] += error * 7 / 16
+                output[j + 1][x - 1] += error * 3 / 16
+                output[j + 1][x] += error * 5 / 16
+                output[j + 1][x - 1] += error * 1 / 16
+    return (np.clip(output, 0, 1) * 255).astype(np.uint8)
+
+
+@njit
+def floyd_steinberg_dithering_njit(
+    img_arr: np.ndarray, palette: np.ndarray, add_noise:bool = True
+):
+    h, w = img_arr.shape
+    if add_noise:
+        noise = np.random.random_sample((h, w)) * NOISE_INTENSITY
+    else:
+        noise = np.zeros((h, w))
+
+    output = np.copy(img_arr) + noise
+    for j in range(h):
+        for i in range(w):
+            x = i if j % 2 == 0 else w - 1 - i
+            original_color = output[j][x]
+            new_color_idx = np.abs(palette - original_color).argmin()
+            new_color = palette[new_color_idx]
+            output[j][x] = new_color
+            error = original_color - new_color
             if j < h - 1 and 0 < x < w - 1 and j % 2 == 0:
                 output[j][x + 1] += error * 7 / 16
                 output[j + 1][x - 1] += error * 3 / 16

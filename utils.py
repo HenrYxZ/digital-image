@@ -95,7 +95,7 @@ def scale_blerp_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
         counter += 1
     return new_arr
 
-
+@njit
 def scale_nn_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
     new_arr = np.zeros((h1, w1, RGB_CHANNELS), dtype=np.uint8)
     num_pixels = h1 * w1
@@ -147,36 +147,6 @@ def blerp_uv(img_arr, u, v):
     return blerp(img_arr, x, y)
 
 
-@njit
-def blerp_uv_njit(img_arr: np.ndarray, u: float, v: float) -> np.ndarray:
-    height, width = img_arr.shape[:2]
-    x = u * width
-    y = v * height
-    # Interpolate values of pixel neighborhood of x and y
-    i = int(x)
-    # Flip y value to go from top to bottom
-    y = height - y
-    j = int(y)
-    # But not in the borders
-    if i == 0 or j == 0 or i == width or j == height:
-        if i == width:
-            i -= 1
-        if j == height:
-            j -= 1
-        return img_arr[j][i]
-    # t and s are interpolation parameters that go from 0 to 1
-    t = x - i
-    s = y - j
-    # Bi-linear interpolation
-    color = np.round(
-        img_arr[j - 1][i - 1] * (1 - t) * (1 - s)
-        + img_arr[j - 1][i] * t * (1 - s)
-        + img_arr[j][i - 1] * (1 - t) * s
-        + img_arr[j][i] * t * s
-    ).astype(np.uint8)
-    return color
-
-
 def nearest_neighbor(img_arr, x, y):
     height, width = img_arr.shape[:2]
     i = int(x)
@@ -205,6 +175,36 @@ def nearest_neighbor_uv_njit(
     y = height - y
     j = int(y)
     return img_arr[j, i]
+
+
+@njit
+def blerp_uv_njit(img_arr: np.ndarray, u: float, v: float) -> np.ndarray:
+    height, width = img_arr.shape[:2]
+    x = u * width
+    y = v * height
+    # Interpolate values of pixel neighborhood of x and y
+    i = int(x)
+    # Flip y value to go from top to bottom
+    y = height - y
+    j = int(y)
+    # But not in the borders
+    if i == 0 or j == 0 or i == width or j == height:
+        if i == width:
+            i -= 1
+        if j == height:
+            j -= 1
+        return img_arr[j][i]
+    # t and s are interpolation parameters that go from 0 to 1
+    t = x - i
+    s = y - j
+    # Bi-linear interpolation
+    color = np.round(
+        img_arr[j - 1][i - 1] * (1 - t) * (1 - s)
+        + img_arr[j - 1][i] * t * (1 - s)
+        + img_arr[j][i - 1] * (1 - t) * s
+        + img_arr[j][i] * t * s
+    ).astype(np.uint8)
+    return color
 
 
 class Timer:
