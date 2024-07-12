@@ -4,7 +4,7 @@ import numpy as np
 import os.path
 
 # Local Modules
-from constants import MAX_COLOR, RGB_CHANNELS
+from constants import RGB_CHANNELS
 from dithering import floyd_steinberg_dithering_njit
 import utils
 from utils import scale_blerp_njit, scale_nn_njit
@@ -99,16 +99,13 @@ def main():
     # --------------------------------------------------------------------------
     # Normalize & dither
     print("Dithering")
-    normalized = grayscale.astype(float) / MAX_COLOR
     dithered_rgb = np.zeros(
         [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
     )
     dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
-    for i, frame in enumerate(normalized):
+    for i, frame in enumerate(grayscale):
         # Use dithering to transform 256 grayscale to 4 colors grayscale
-        dithered[i] = floyd_steinberg_dithering_njit(
-            frame, GRAYSCALE_PALETTE, add_noise=False
-        )
+        dithered[i] = floyd_steinberg_dithering_njit(frame, GRAYSCALE_PALETTE)
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
     iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
 

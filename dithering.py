@@ -71,15 +71,14 @@ def floyd_steinberg_dithering(img_arr, add_noise=True, palette=None):
 
 @njit
 def floyd_steinberg_dithering_njit(
-    img_arr: np.ndarray, palette: np.ndarray, add_noise:bool = True
-):
+    img_arr: np.ndarray, palette: np.ndarray
+) -> np.ndarray:
+    """
+    img_arr: The input image given as an array in range [0, 255]
+    """
     h, w = img_arr.shape
-    if add_noise:
-        noise = np.random.random_sample((h, w)) * NOISE_INTENSITY
-    else:
-        noise = np.zeros((h, w))
+    output = np.copy(img_arr).astype(np.float64)
 
-    output = np.copy(img_arr) + noise
     for j in range(h):
         for i in range(w):
             x = i if j % 2 == 0 else w - 1 - i
@@ -98,7 +97,7 @@ def floyd_steinberg_dithering_njit(
                 output[j + 1][x - 1] += error * 3 / 16
                 output[j + 1][x] += error * 5 / 16
                 output[j + 1][x - 1] += error * 1 / 16
-    return (np.clip(output, 0, 1) * 255).astype(np.uint8)
+    return (np.clip(output, 0, MAX_COLOR)).astype(np.uint8)
 
 
 def ordered_dithering(img_arr):
