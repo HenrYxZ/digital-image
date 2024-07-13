@@ -12,6 +12,7 @@ from utils import scale_blerp_njit, scale_nn_njit
 
 VIDEOS_DIR = "videos"
 VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
+# VIDEO_FILENAME = f"{VIDEOS_DIR}/ShrekTrailer.mp4"
 GRAYSCALE_FILENAME = f"{VIDEOS_DIR}/grayscale.mp4"
 RESIZED_FILENAME = f"{VIDEOS_DIR}/resized.mp4"
 DITHERED_FILENAME = f"{VIDEOS_DIR}/dithered.mp4"
@@ -47,20 +48,18 @@ def fit_screen(w0: int, h0: int) -> tuple[int, int]:
 @njit
 def grayscale_to_palette(img_arr: np.ndarray):
     h, w = img_arr.shape
-    counter = 0
     rgb_arr = np.zeros((h, w, RGB_CHANNELS), dtype=np.uint8)
-    for pixel in np.nditer(img_arr):
-        j = int(counter / w)
-        i = int(counter % w)
-        if pixel == 0:
-            rgb_arr[j, i] = PALETTE[0]
-        elif pixel == 84:
-            rgb_arr[j, i] = PALETTE[1]
-        elif pixel == 168:
-            rgb_arr[j, i] = PALETTE[2]
-        else:
-            rgb_arr[j, i] = PALETTE[3]
-        counter += 1
+    for j in range(h):
+        for i in range(w):
+            pixel = img_arr[j, i]
+            if pixel == 0:
+                rgb_arr[j, i] = PALETTE[0]
+            elif pixel == 84:
+                rgb_arr[j, i] = PALETTE[1]
+            elif pixel == 168:
+                rgb_arr[j, i] = PALETTE[2]
+            else:
+                rgb_arr[j, i] = PALETTE[3]
     return rgb_arr
 
 
@@ -76,6 +75,7 @@ def main():
 
     # Read frames from video
     print(f"Reading video file {VIDEO_FILENAME}")
+    metadata = iio.immeta(VIDEO_FILENAME, exclude_applied=False)
     frames = iio.imread(VIDEO_FILENAME)
     total_frames, h0, w0, color_channels = frames.shape
 
@@ -86,7 +86,7 @@ def main():
     resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8)
     for i, frame in enumerate(frames):
         resized[i] = scale_blerp_njit(frame, h1, w1)
-    iio.imwrite(RESIZED_FILENAME, resized, fps=FPS)
+    iio.imwrite(RESIZED_FILENAME, resized, fps=metadata["fps"])
 
     # Transform to grayscale
     # -------------------------------------------------------------------------
@@ -94,7 +94,7 @@ def main():
     frames = np.dot(resized, RGB_WEIGHT)
     grayscale = np.round(frames).astype(np.uint8)
     grayscale_as_rgb = np.stack([grayscale] * 3, axis=-1)
-    iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=FPS)
+    iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=metadata["fps"])
 
     # --------------------------------------------------------------------------
     # Normalize & dither
@@ -107,7 +107,7 @@ def main():
         # Use dithering to transform 256 grayscale to 4 colors grayscale
         dithered[i] = floyd_steinberg_dithering_njit(frame, GRAYSCALE_PALETTE)
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
-    iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=FPS)
+    iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=metadata["fps"])
 
     # -------------------------------------------------------------------------
     # Colorize with Game Boy palette
@@ -132,7 +132,7 @@ def main():
             vertical_offset:vertical_limit,
             horizontal_offset:horizontal_limit
         ] = rgb_img_arr
-        iio.imwrite(SMALL_FILENAME, output_frames, fps=FPS)
+        iio.imwrite(SMALL_FILENAME, output_frames, fps=metadata["fps"])
 
     # -------------------------------------------------------------------------
     # Scale up the video to be bigger
@@ -152,7 +152,7 @@ def main():
         final_frames[i] = scale_nn_njit(frame, h_final, w_final)
 
     print("Writing video")
-    iio.imwrite(OUT_VIDEO_FILENAME, final_frames, fps=FPS)
+    iio.imwrite(OUT_VIDEO_FILENAME, final_frames, fps=metadata["fps"])
     # -------------------------------------------------------------------------
     timer.stop()
     print(f"Total time spent {timer}")
