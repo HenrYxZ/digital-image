@@ -12,8 +12,8 @@ from utils import scale_blerp_njit, scale_nn_njit
 
 
 VIDEOS_DIR = "videos"
-VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
-# VIDEO_FILENAME = f"{VIDEOS_DIR}/ShrekTrailer.mp4"
+# VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
+VIDEO_FILENAME = f"{VIDEOS_DIR}/ShrekTrailer.mp4"
 GRAYSCALE_FILENAME = f"{VIDEOS_DIR}/grayscale.mp4"
 RESIZED_FILENAME = f"{VIDEOS_DIR}/resized.mp4"
 DITHERED_FILENAME = f"{VIDEOS_DIR}/dithered.mp4"
@@ -87,7 +87,7 @@ def main():
     resized = np.zeros(
         [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
     )
-    for i, frame in tqdm(enumerate(frames), desc=desc):
+    for i, frame in tqdm(enumerate(frames), desc=desc, total=total_frames):
         resized[i] = scale_blerp_njit(frame, h1, w1)
     iio.imwrite(RESIZED_FILENAME, resized, fps=metadata["fps"])
 
@@ -106,7 +106,7 @@ def main():
         [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
     )
     dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
-    for i, frame in tqdm(enumerate(grayscale), desc=desc):
+    for i, frame in tqdm(enumerate(grayscale), desc=desc, total=total_frames):
         # Use dithering to transform 256 grayscale to 4 colors grayscale
         dithered[i] = floyd_steinberg_dithering_njit(frame, GRAYSCALE_PALETTE)
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
@@ -125,7 +125,7 @@ def main():
     else:
         vertical_offset = 0
         horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
-    for i, frame in tqdm(enumerate(dithered), desc=desc):
+    for i, frame in tqdm(enumerate(dithered), desc=desc, total=total_frames):
         # Transform to Game Boy color palette
         rgb_img_arr = grayscale_to_palette(frame)
         vertical_limit = vertical_offset + h1
@@ -151,7 +151,9 @@ def main():
         ],
         dtype=np.uint8
     )
-    for i, frame in tqdm(enumerate(output_frames), desc=desc):
+    for i, frame in tqdm(
+            enumerate(output_frames), desc=desc, total=total_frames
+    ):
         final_frames[i] = scale_nn_njit(frame, h_final, w_final)
 
     print("Writing video")
