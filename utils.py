@@ -83,31 +83,26 @@ def normalize_color(color):
 @njit
 def scale_blerp_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
     new_arr = np.zeros((h1, w1, RGB_CHANNELS), dtype=np.uint8)
-    num_pixels = h1 * w1
 
-    for counter in range(num_pixels):
-        j = int(counter / w1)
-        i = int(counter % w1)
-        # sample the corresponding pixel in the original array
-        u = (i + 0.5) / w1
-        v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
-        new_arr[j, i] = blerp_uv_njit(img_arr, u, v)
-        counter += 1
+    for j in range(h1):
+        for i in range(w1):
+            # sample the corresponding pixel in the original array
+            u = (i + 0.5) / w1
+            v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
+            new_arr[j, i] = blerp_uv_njit(img_arr, u, v)
     return new_arr
+
 
 @njit
 def scale_nn_njit(img_arr: np.ndarray, h1: int, w1: int) -> np.ndarray:
     new_arr = np.zeros((h1, w1, RGB_CHANNELS), dtype=np.uint8)
-    num_pixels = h1 * w1
 
-    for counter in range(num_pixels):
-        j = int(counter / w1)
-        i = int(counter % w1)
-        # sample the corresponding pixel in the original array
-        u = (i + 0.5) / w1
-        v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
-        new_arr[j, i] = nearest_neighbor_uv_njit(img_arr, u, v)
-        counter += 1
+    for j in range(h1):
+        for i in range(w1):
+            # sample the corresponding pixel in the original array
+            u = (i + 0.5) / w1
+            v = (h1 - (j + 0.5)) / h1  # y would be going from bottom to top
+            new_arr[j, i] = nearest_neighbor_uv_njit(img_arr, u, v)
     return new_arr
 
 
