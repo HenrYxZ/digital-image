@@ -2,6 +2,7 @@ import imageio.v3 as iio
 from numba import njit
 import numpy as np
 import os.path
+from tqdm import tqdm
 
 # Local Modules
 from constants import RGB_CHANNELS
@@ -81,10 +82,12 @@ def main():
 
     # Resize to fit Game Boy screen
     # -------------------------------------------------------------------------
-    print("Resizing video to fit Game Boy")
+    desc = "Resizing video to fit Game Boy"
     w1, h1 = fit_screen(w0, h0)
-    resized = np.zeros([total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8)
-    for i, frame in enumerate(frames):
+    resized = np.zeros(
+        [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
+    )
+    for i, frame in tqdm(enumerate(frames), desc=desc):
         resized[i] = scale_blerp_njit(frame, h1, w1)
     iio.imwrite(RESIZED_FILENAME, resized, fps=metadata["fps"])
 
@@ -98,12 +101,12 @@ def main():
 
     # --------------------------------------------------------------------------
     # Normalize & dither
-    print("Dithering")
+    desc = "Dithering"
     dithered_rgb = np.zeros(
         [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
     )
     dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
-    for i, frame in enumerate(grayscale):
+    for i, frame in tqdm(enumerate(grayscale), desc=desc):
         # Use dithering to transform 256 grayscale to 4 colors grayscale
         dithered[i] = floyd_steinberg_dithering_njit(frame, GRAYSCALE_PALETTE)
         dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
@@ -111,7 +114,7 @@ def main():
 
     # -------------------------------------------------------------------------
     # Colorize with Game Boy palette
-    print("Colorizing with the Game Boy palette")
+    desc = "Colorizing with the Game Boy palette"
     output_frames = np.ones(
         [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
         dtype=np.uint8
@@ -122,7 +125,7 @@ def main():
     else:
         vertical_offset = 0
         horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
-    for i, frame in enumerate(dithered):
+    for i, frame in tqdm(enumerate(dithered), desc=desc):
         # Transform to Game Boy color palette
         rgb_img_arr = grayscale_to_palette(frame)
         vertical_limit = vertical_offset + h1
@@ -136,7 +139,7 @@ def main():
 
     # -------------------------------------------------------------------------
     # Scale up the video to be bigger
-    print("Scaling up the video")
+    desc = "Scaling up the video"
     h_final = SCREEN_HEIGHT * PIXEL_SIZE
     w_final = SCREEN_WIDTH * PIXEL_SIZE
     final_frames = np.zeros(
@@ -148,7 +151,7 @@ def main():
         ],
         dtype=np.uint8
     )
-    for i, frame in enumerate(output_frames):
+    for i, frame in tqdm(enumerate(output_frames), desc=desc):
         final_frames[i] = scale_nn_njit(frame, h_final, w_final)
 
     print("Writing video")
