@@ -47,20 +47,15 @@ def fit_screen(w0: int, h0: int) -> tuple[int, int]:
 
 
 @njit
-def grayscale_to_palette(img_arr: np.ndarray):
-    h, w = img_arr.shape
-    rgb_arr = np.zeros((h, w, RGB_CHANNELS), dtype=np.uint8)
-    for j in range(h):
-        for i in range(w):
-            pixel = img_arr[j, i]
-            if pixel == 0:
-                rgb_arr[j, i] = PALETTE[0]
-            elif pixel == 84:
-                rgb_arr[j, i] = PALETTE[1]
-            elif pixel == 168:
-                rgb_arr[j, i] = PALETTE[2]
-            else:
-                rgb_arr[j, i] = PALETTE[3]
+def grayscale_to_palette(img_arr: np.ndarray) -> np.ndarray:
+    total_frames, h, w = img_arr.shape
+    rgb_arr = np.zeros((total_frames, h, w, RGB_CHANNELS), dtype=np.uint8)
+
+    for i, grayscale_color in enumerate(GRAYSCALE_PALETTE):
+        mask = img_arr == grayscale_color
+        mask_rgb = np.stack((mask, mask, mask), axis=-1)
+        rgb_arr = rgb_arr + mask_rgb * PALETTE[i]
+
     return rgb_arr
 
 
@@ -114,7 +109,7 @@ def main():
 
     # -------------------------------------------------------------------------
     # Colorize with Game Boy palette
-    desc = "Colorizing with the Game Boy palette"
+    print("Colorizing with the Game Boy palette")
     output_frames = np.ones(
         [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
         dtype=np.uint8
@@ -125,17 +120,18 @@ def main():
     else:
         vertical_offset = 0
         horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
-    for i, frame in tqdm(enumerate(dithered), desc=desc, total=total_frames):
-        # Transform to Game Boy color palette
-        rgb_img_arr = grayscale_to_palette(frame)
-        vertical_limit = vertical_offset + h1
-        horizontal_limit = horizontal_offset + w1
+    vertical_limit = vertical_offset + h1
+    horizontal_limit = horizontal_offset + w1
+    rgb_img_arr = grayscale_to_palette(dithered)
+    desc = "Adding padding to image"
+    for i, frame in tqdm(enumerate(rgb_img_arr), desc=desc, total=total_frames):
         output_frames[
             i,
             vertical_offset:vertical_limit,
             horizontal_offset:horizontal_limit
-        ] = rgb_img_arr
-        iio.imwrite(SMALL_FILENAME, output_frames, fps=metadata["fps"])
+        ] = frame
+
+    iio.imwrite(SMALL_FILENAME, output_frames, fps=metadata["fps"])
 
     # -------------------------------------------------------------------------
     # Scale up the video to be bigger
