@@ -12,7 +12,7 @@ and the projects in this link:
 
 Image created from a function
 
-## Project 2 - Image creation of half-plane, circle and polynomial. Anti-aliasing.
+## Project 2 - Image creation of half-plane, circle and polynomial. Antialiasing.
 
 ![circle](docs/circle.jpg)
 
@@ -38,13 +38,13 @@ Box blur
 
 Motion blur
 
-| ![](images/circle.jpg)  | ![](docs/dilation.jpg)  |
-|:---:|:---:|
-| Original | Dilated |
+| ![](images/circle.jpg) | ![](docs/dilation.jpg) |
+|:----------------------:|:----------------------:|
+|        Original        |        Dilated         |
 
-| ![](images/box.jpg)  | ![](docs/erosion.jpg)  |
-|:---:|:---:|
-| Original | Eroded |
+| ![](images/box.jpg) | ![](docs/erosion.jpg) |
+|:-------------------:|:---------------------:|
+|      Original       |        Eroded         |
 
 
 ![edge](docs/edge.jpg)
@@ -53,10 +53,10 @@ Edge
 
 ## Project 6 - Non-Stationary Filters (image instead of kernel): Motion blur and dilation
 
-| Filter  | Input Image  | Image as Filter   | Result  |
-|---|---|---|---|
-| Motion Blur  | ![](images/mickey.jpg) | ![](images/move.jpg) | ![](docs/non_stationary_motion.jpg)  |
-| Dilation  | ![](images/mickey.jpg) | ![](images/dilate.jpg) | ![](docs/non_stationary_dilation.jpg) |
+| Filter      | Input Image            | Image as Filter        | Result                                |
+|-------------|------------------------|------------------------|---------------------------------------|
+| Motion Blur | ![](images/mickey.jpg) | ![](images/move.jpg)   | ![](docs/non_stationary_motion.jpg)   |
+| Dilation    | ![](images/mickey.jpg) | ![](images/dilate.jpg) | ![](docs/non_stationary_dilation.jpg) |
 
 
 ## Project 7 - Transformations
@@ -71,12 +71,12 @@ See [dithering.py](dithering.py)
 
 See [seam_carving.py](seam_carving.py)
 
-| Left Image | Right Image | Seaming |
-|---|---|---|
+| Left Image           | Right Image          | Seaming              |
+|----------------------|----------------------|----------------------|
 | ![](images/img1.jpg) | ![](images/img2.jpg) | ![](docs/seamed.jpg) |
 
-| Original | Carved |
-|---|---|
+| Original              | Carved               |
+|-----------------------|----------------------|
 | ![](images/field.jpg) | ![](docs/carved.jpg) |
 
 ## Project 11 - Videos
@@ -92,12 +92,19 @@ Ordered Dithering Video
 Phong Shader Video
 
 
+# Additional Projects
 
+## Game Boy video filter
 
+See [gb_dithering.py](gb_dithering.py)
+
+![Game Boy video filter](docs/gb.gif)
 
 
 ## Dependencies
 
+- numba
 - numpy
 - Pillow
 - progress
+- tqdm
