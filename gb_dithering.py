@@ -1,4 +1,4 @@
-import imageio.v3 as iio
+import av
 from numba import njit
 import numpy as np
 import os.path
@@ -8,12 +8,13 @@ from tqdm import tqdm
 from constants import RGB_CHANNELS
 from dithering import floyd_steinberg_dithering_njit
 import utils
-from utils import scale_blerp_njit, scale_nn_njit
+from utils import scale_nn_njit
 
 
 VIDEOS_DIR = "videos"
 # VIDEO_FILENAME = f"{VIDEOS_DIR}/anim_final_raytraced.mp4"
-VIDEO_FILENAME = f"{VIDEOS_DIR}/ShrekTrailer.mp4"
+# VIDEO_FILENAME = f"{VIDEOS_DIR}/miri.mp4"
+VIDEO_FILENAME = f"{VIDEOS_DIR}/gta.mp4"
 GRAYSCALE_FILENAME = f"{VIDEOS_DIR}/grayscale.mp4"
 RESIZED_FILENAME = f"{VIDEOS_DIR}/resized.mp4"
 DITHERED_FILENAME = f"{VIDEOS_DIR}/dithered.mp4"
@@ -41,15 +42,15 @@ def fit_screen(w0: int, h0: int) -> tuple[int, int]:
     """
     h1 = int((SCREEN_WIDTH / w0) * h0)
     w1 = int((SCREEN_HEIGHT / h0) * w0)
-    if h1 <= SCREEN_HEIGHT:
+    if h1 > SCREEN_HEIGHT:
         return SCREEN_WIDTH, h1
     return w1, SCREEN_HEIGHT
 
 
 @njit
 def grayscale_to_palette(img_arr: np.ndarray) -> np.ndarray:
-    total_frames, h, w = img_arr.shape
-    rgb_arr = np.zeros((total_frames, h, w, RGB_CHANNELS), dtype=np.uint8)
+    h, w = img_arr.shape
+    rgb_arr = np.zeros((h, w, RGB_CHANNELS), dtype=np.uint8)
 
     for i, grayscale_color in enumerate(GRAYSCALE_PALETTE):
         mask = img_arr == grayscale_color
@@ -71,93 +72,92 @@ def main():
 
     # Read frames from video
     print(f"Reading video file {VIDEO_FILENAME}")
-    metadata = iio.immeta(VIDEO_FILENAME, exclude_applied=False)
-    frames = iio.imread(VIDEO_FILENAME)
-    total_frames, h0, w0, color_channels = frames.shape
+    container = av.open(VIDEO_FILENAME)
+    total_frames = container.streams.video[0].frames
 
-    # Resize to fit Game Boy screen
-    # -------------------------------------------------------------------------
-    desc = "Resizing video to fit Game Boy"
-    w1, h1 = fit_screen(w0, h0)
-    resized = np.zeros(
-        [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
-    )
-    for i, frame in tqdm(enumerate(frames), desc=desc, total=total_frames):
-        resized[i] = scale_blerp_njit(frame, h1, w1)
-    iio.imwrite(RESIZED_FILENAME, resized, fps=metadata["fps"])
-
-    # Transform to grayscale
-    # -------------------------------------------------------------------------
-    print("Transforming video to grayscale")
-    frames = np.dot(resized, RGB_WEIGHT)
-    grayscale = np.round(frames).astype(np.uint8)
-    grayscale_as_rgb = np.stack([grayscale] * 3, axis=-1)
-    iio.imwrite(GRAYSCALE_FILENAME, grayscale_as_rgb, fps=metadata["fps"])
-
-    # --------------------------------------------------------------------------
-    # Normalize & dither
-    desc = "Dithering"
-    dithered_rgb = np.zeros(
-        [total_frames, h1, w1, RGB_CHANNELS], dtype=np.uint8
-    )
-    dithered = np.zeros([total_frames, h1, w1], dtype=np.uint8)
-    for i, frame in tqdm(enumerate(grayscale), desc=desc, total=total_frames):
-        # Use dithering to transform 256 grayscale to 4 colors grayscale
-        dithered[i] = floyd_steinberg_dithering_njit(frame, GRAYSCALE_PALETTE)
-        dithered_rgb[i] = np.stack([dithered[i]] * 3, axis=-1)
-    iio.imwrite(DITHERED_FILENAME, dithered_rgb, fps=metadata["fps"])
-
-    # -------------------------------------------------------------------------
-    # Colorize with Game Boy palette
-    print("Colorizing with the Game Boy palette")
-    output_frames = np.ones(
-        [total_frames, SCREEN_HEIGHT, SCREEN_WIDTH, color_channels],
-        dtype=np.uint8
-    ) * PALETTE[0]
-    if SCREEN_HEIGHT - h1 > 0:
-        vertical_offset = int((SCREEN_HEIGHT - h1) / 2)
-        horizontal_offset = 0
-    else:
-        vertical_offset = 0
-        horizontal_offset = int((SCREEN_WIDTH - w1) / 2)
-    vertical_limit = vertical_offset + h1
-    horizontal_limit = horizontal_offset + w1
-    rgb_img_arr = grayscale_to_palette(dithered)
-    desc = "Adding padding to image"
-    for i, frame in tqdm(enumerate(rgb_img_arr), desc=desc, total=total_frames):
-        output_frames[
-            i,
-            vertical_offset:vertical_limit,
-            horizontal_offset:horizontal_limit
-        ] = frame
-
-    iio.imwrite(SMALL_FILENAME, output_frames, fps=metadata["fps"])
-
-    # -------------------------------------------------------------------------
-    # Scale up the video to be bigger
-    desc = "Scaling up the video"
     h_final = SCREEN_HEIGHT * PIXEL_SIZE
     w_final = SCREEN_WIDTH * PIXEL_SIZE
-    final_frames = np.zeros(
-        [
-            total_frames,
-            h_final,
-            w_final,
-            color_channels
-        ],
-        dtype=np.uint8
-    )
-    for i, frame in tqdm(
-            enumerate(output_frames), desc=desc, total=total_frames
-    ):
-        final_frames[i] = scale_nn_njit(frame, h_final, w_final)
 
-    print("Writing video")
-    iio.imwrite(OUT_VIDEO_FILENAME, final_frames, fps=metadata["fps"])
+    out_container = av.open(OUT_VIDEO_FILENAME, mode="w")
+
+    out_stream = out_container.add_stream(
+        codec_name="libx264",
+        rate=container.streams.video[0].average_rate.numerator
+    )
+    out_stream.width = w_final
+    out_stream.height = h_final
+    out_stream.pix_fmt = "yuv420p"
+
+    has_audio = len(container.streams.audio) > 0
+    if has_audio:
+        src_audio = container.streams.audio[0]
+        out_audio = out_container.add_stream_from_template(src_audio)
+
+    for i, frame in tqdm(
+        enumerate(container.decode(video=0)),
+        desc="Reading Video",
+        total=total_frames
+    ):
+        # Resize to fit Game Boy screen
+        # -------------------------------------------------------------------------
+        w0 = frame.width
+        h0 = frame.height
+        w1, h1 = fit_screen(w0, h0)
+
+        # --------------------------------------------------------------------------
+        # Normalize & dither
+        im_arr = frame.reformat(width=w1, height=h1, format='gray').to_ndarray()
+        if h1 > SCREEN_HEIGHT:
+            vertical_offset = (h1 - SCREEN_HEIGHT) // 2
+            horizontal_offset = 0
+        else:
+            vertical_offset = 0
+            horizontal_offset = (w1 - SCREEN_WIDTH) // 2
+        vertical_limit = vertical_offset + SCREEN_HEIGHT
+        horizontal_limit = horizontal_offset + SCREEN_WIDTH
+        cropped_arr = im_arr[
+            vertical_offset:vertical_limit,
+            horizontal_offset:horizontal_limit
+        ]
+        dithered = floyd_steinberg_dithering_njit(
+            cropped_arr, GRAYSCALE_PALETTE
+        )
+
+        # -------------------------------------------------------------------------
+        # Colorize with Game Boy palette
+        rgb_img_arr = grayscale_to_palette(dithered)
+
+        # Scale up the frame with nearest neighbor
+        final_arr = scale_nn_njit(rgb_img_arr, h_final, w_final)
+
+        # write frame into stream
+        video_frame = av.VideoFrame.from_ndarray(final_arr, format="rgb24")
+        for packet in out_stream.encode(video_frame):
+            out_container.mux(packet)
+
+    # Flush stream
+    for packet in out_stream.encode():
+        out_container.mux(packet)
+
+    if has_audio:
+        container.seek(0)
+        for packet in container.demux(src_audio):
+            if packet.dts is None:
+                continue
+
+            # Reassign the packet to the output audio stream
+            packet.stream = out_audio
+
+            # Mux the audio packet directly
+            out_container.mux(packet)
+
     # -------------------------------------------------------------------------
     timer.stop()
     print(f"Total time spent {timer}")
+    print(f"Output video saved in {OUT_VIDEO_FILENAME}")
 
+    container.close()
+    out_container.close()
 
 if __name__ == '__main__':
     main()
